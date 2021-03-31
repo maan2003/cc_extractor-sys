@@ -1,0 +1,14 @@
+[package]
+name = "cc_extractor-sys"
+version = "0.1.0"
+authors = ["Maan2003 <manmeetmann2003@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+cstr = "0.2.8"
+freetype-sys = "0.14.0"
+
+[build-dependencies]
+bindgen = "0.57.0"
+cc = "1.0.67"
+cmake = "0.1"
