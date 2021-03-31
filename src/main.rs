@@ -7,7 +7,7 @@ use std::convert::TryInto;
 use std::env;
 use std::ffi::CString;
 use std::mem::{self, MaybeUninit};
-use std::os::raw::{c_char, c_int, c_longlong};
+use std::os::raw::{c_int, c_longlong};
 use std::process;
 
 // I guess use cc_extractor_sys::* is better
@@ -380,29 +380,30 @@ unsafe fn api_init_options() -> *mut ccx_s_options {
 fn main() {
     unsafe {
         let mut args = env::args()
-            .map(CString::new)
+            .map(|arg| CString::new(arg).map(CString::into_raw))
             .collect::<Result<Vec<_>, _>>()
             .expect("Some argument contains null character");
 
-        // :( parse_parameters requires *mut *mut c_char
-        // I don't think it will mutate
-        let mut args: Vec<*mut c_char> =
-            args.iter_mut().map(|arg| arg.as_ptr() as *mut _).collect();
-        let argc = args.len();
+        let argc = args.len().try_into().expect("Cannot cast argc into c_int");
         let argv = args.as_mut_ptr();
         let api_options = api_init_options();
         parse_configuration(api_options);
+        // this requires *mut *mut c_char, but should be *const *const c_char
         let compile_ret = parse_parameters(
             api_options,
-            argc.try_into().expect("Cannot cast argc into c_int"),
+            argc,
             argv,
         );
+
+        // drop the CStrings
+        for ptr in args {
+	    drop(CString::from_raw(ptr));
+        }
+
+        // we should be using match but `as i32` :(
         if compile_ret == EXIT_NO_INPUT_FILES as i32 {
             print_usage();
-            // fatal(
-            //     EXIT_NO_INPUT_FILES,
-            //     "(This help screen was shown because there were no input files)\n",
-            // );
+            process::exit(compile_ret);
         } else if compile_ret == EXIT_WITH_HELP as i32 {
             return;
         } else if compile_ret != EXIT_OK as i32 {
